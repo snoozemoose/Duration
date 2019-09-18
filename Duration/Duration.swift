@@ -102,8 +102,31 @@ public struct Duration: Codable {
     
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        let value = try container.decode(String.self)
-        try self.init(string: value)
+
+        do {
+            let value = try container.decode(String.self)
+            try self.init(string: value)
+        } catch {
+            // Uglyhack to deal with us having changed from DateComponents to Duration in persisted data
+            if let dateComponents = try? container.decode(DateComponents.self) {
+                var result = "P"
+                if let year = dateComponents.year { result += "\(year)Y" }
+                if let month = dateComponents.month { result += "\(month)M" }
+                if let week = dateComponents.weekOfYear { result += "\(week)W" }
+                if let day = dateComponents.day { result += "\(day)D" }
+                result += "T"
+                if let hour = dateComponents.hour { result += "\(hour)H" }
+                if let minute = dateComponents.minute { result += "\(minute)M" }
+                if let second = dateComponents.second { result += "\(second)S" }
+                if result != "PT" {
+                    try self.init(string: result)
+                    return
+                }
+            }
+
+            // Nope, not a DateComponent either - throw original error
+            throw error
+        }
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -162,4 +185,3 @@ extension DateComponents {
         return DateComponents(calendar: self.calendar, timeZone: self.timeZone, era: nil, year: -(self.year ?? 0), month: -(self.month ?? 0), day:  -(self.day ?? 0), hour: -(self.hour ?? 0), minute:  -(self.minute ?? 0), second: -(self.second ?? 0), nanosecond: nil, weekday: nil, weekdayOrdinal: nil, quarter: nil, weekOfMonth: nil, weekOfYear: nil, yearForWeekOfYear: nil)
     }
 }
-
